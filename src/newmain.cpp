@@ -14,8 +14,8 @@
 // STEPPER DRIVER CONFIG
 #define MICROSTEPS      8
 #define STEPS_PER_REV   200
-#define MAX_SPEED   6400
-#define ACCELERATION 400
+#define MAX_SPEED     12000
+#define ACCELERATION  20000
 
 #define R_SENSE     0.11f
 
@@ -27,7 +27,7 @@ MPU6050 mpu;
 float AccX, AccY, AccZ;
 float GyroX, GyroY, GyroZ;
 float gyroAngleX = 0, gyroAngleY = 0;
-float roll, pitch, yaw;
+float roll, pitch, yaw; 
 float elapsedTime;
 unsigned long currentTime, previousTime;
 
@@ -59,15 +59,23 @@ Angles getAngle() {
     float pitchGyro = (gy / 131.0) ;
     float rollGyro  = (gx / 131.0) ;
 
-    // Same filter as your MicroPython code
-    pitch = 0.95 * (pitch + pitchGyro * elapsedTime) + 0.05 * pitchAccel;
-    roll  = 0.95 * (roll  + rollGyro  * elapsedTime) + 0.05 * rollAccel;
+
+
+    //avoid measurement where linear acceleration is significant
+    float accMag = sqrt(AccX*AccX + AccY*AccY + AccZ*AccZ);
+    bool accelReliable = abs(accMag - 1.0) < 0.15;  // tune 0.1–0.25
+
+    float alpha;
+    if (accelReliable) {
+        alpha = 0.98;   // gyro dominant, slow accel correction
+    } else {
+        alpha = 1.0;    // ignore accel, gyro only
+    }
+    // Complementary filter
+    pitch = alpha * (pitch + pitchGyro * elapsedTime) + (1-alpha) * pitchAccel;
+    roll  = alpha * (roll  + rollGyro  * elapsedTime) + (1-alpha) * rollAccel;
 
     return {round(roll), round(pitch)};
-}
-
-void moveStepper(){
-
 }
 
 
@@ -84,7 +92,7 @@ void setup() {
     currentTime = millis();
     digitalWrite(EN_PIN, HIGH);   // disable driver while configuring 
 
-    // Driver
+    // ------------- Driver------------- 
     Serial2.begin(115200, SERIAL_8N1, RX_PIN, TX_PIN);
     driver.begin();
     driver.toff(4);               // lower toff = faster switching, better at high speeds
@@ -100,16 +108,42 @@ void setup() {
 
     //LEDs and other shit
     pinMode(25, OUTPUT);
+    pinMode(32, INPUT_PULLDOWN); //button with pulldown resistor in place -> prevents floating (noise, nearby wires etc.)
+    pinMode(33, INPUT_PULLDOWN); // pull back button for testing
 }
 
-void isValidAngle(int(roll),int(pitch)){
+
+
+boolean isValidAngle(int(roll),int(pitch)){
     if (abs(roll)<10 && abs(pitch)<10){
-        digitalWrite(25,HIGH);
+        digitalWrite(25,LOW);
+        return true;
     }
     else{
-        digitalWrite(25,LOW);
+        digitalWrite(25,HIGH);
+        return false;
     }
 }
+
+
+void moveStepper(int steps) {
+    stepper.move(steps);          // relative move from current position
+
+    while (stepper.distanceToGo() != 0) {
+        stepper.run();            // must be called repeatedly
+    }
+}
+
+void buttonClickTest(){
+    if (digitalRead(32) == HIGH) {
+        moveStepper(3200);        // 1 revolution at 200 steps/rev × 8 microsteps
+        delay(300);
+    } else if (digitalRead(33) == HIGH) {
+        moveStepper(-3200);        // 1 revolution at 200 steps/rev × 8 microsteps
+        delay(300);
+    }
+}
+
 
 
 void loop() {
@@ -123,7 +157,15 @@ void loop() {
 
     // TESTING STEPPER
     // stepper.run();
+
     
     Angles angles = getAngle();
-    isValidAngle(angles.roll,angles.pitch);
+    if(isValidAngle(angles.roll,angles.pitch)){
+        buttonClickTest();
+    };
+
+    
+    // Read the state of the button
+    
+    
 }
