@@ -123,6 +123,7 @@ void loop() {
 
     // TESTING STEPPER
     // stepper.run();
+    
     Angles angles = getAngle();
     isValidAngle(angles.roll,angles.pitch);
 }
