@@ -30,9 +30,9 @@
 #define TFT_MOSI  21
 
 // BUYTTON PINS
-#define UP_BTN  
-#define OK_BTN  
-#define DOWN_BTN    
+#define UP_BTN  14
+#define OK_BTN  12
+#define DOWN_BTN  13  
 
 
 // -------------------------------- OBJECT CREATION --------------------------------
@@ -51,6 +51,7 @@ float gyroAngleX = 0, gyroAngleY = 0;
 float roll, pitch, yaw; 
 float elapsedTime;
 unsigned long currentTime, previousTime;
+int prev= 0; //1=UP, 2=OK, 3=DOWN 
 
 //--------------------------------- IMU ANGLE DETECTION ---------------------------------
 struct Angles {
@@ -134,15 +135,21 @@ void moveStepper(int steps) {
     }
 }
 
-// void buttonClickTest(){
-//     if (digitalRead(32) == HIGH) {
-//         moveStepper(3200);        // 1 revolution at 200 steps/rev × 8 microsteps
-//         delay(300);
-//     } else if (digitalRead(33) == HIGH) {
-//         moveStepper(-3200);        // 1 revolution at 200 steps/rev × 8 microsteps
-//         delay(300);
-//     }
-// }
+
+void buttonClickTest(){
+    
+    if (digitalRead(UP_BTN) == HIGH && prev != 1) {
+        Serial.println("UP clicked");
+        prev=1;
+    } else if (digitalRead(DOWN_BTN) == HIGH && prev != 3) {
+        Serial.println("DOWN clicked");
+        prev=3;
+    }
+    else if (digitalRead(OK_BTN) == HIGH && prev != 2 ) {
+        Serial.println("OK clicked");
+        prev=2;
+    }
+}
 
 
 
@@ -172,29 +179,29 @@ void setup() {
     stepper.move(-10000);      // changing this value to calibrate
     digitalWrite(EN_PIN, LOW);    // enable driver after config
 
-    // //LEDs and other shit
-    // pinMode(25, OUTPUT);
-    // pinMode(32, INPUT_PULLDOWN); //button with pulldown resistor in place -> prevents floating (noise, nearby wires etc.)
-    // pinMode(33, INPUT_PULLDOWN); // pull back button for testing
+    //LEDs and other shit
+    pinMode(UP_BTN, INPUT_PULLDOWN);
+    pinMode(DOWN_BTN, INPUT_PULLDOWN); //button with pulldown resistor in place -> prevents floating (noise, nearby wires etc.)
+    pinMode(OK_BTN, INPUT_PULLDOWN); // pull back button for testing
 }
 
 
 void loop() {
-    Angles angles = getAngle();
-    Serial.print("Roll: ");
-    Serial.println(angles.roll);
-    Serial.print("Pitch: ");
-    Serial.println(angles.pitch);
-    delay(50);
+    // Angles angles = getAngle();
+    // Serial.print("Roll: ");
+    // Serial.println(angles.roll);
+    // Serial.print("Pitch: ");
+    // Serial.println(angles.pitch);
+    // delay(50);
 
     // TESTING STEPPER
     // stepper.run();
 
-    // button press at valid angle
-//     Angles angles = getAngle();
-//     if(isValidAngle(angles.roll,angles.pitch)){
-//         buttonClickTest();
-//     };
+    // Angles angles = getAngle();
+    // if(isValidAngle(angles.roll,angles.pitch)){
+    //     buttonClickTest();
+    // };
+    buttonClickTest();
 }
 
 
