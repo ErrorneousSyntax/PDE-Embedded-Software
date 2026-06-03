@@ -3,7 +3,11 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <MPU6050.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_ST7735.h>
+#include <SPI.h>
 
+// -------------------------------- PIN DEFINITIONS --------------------------------
 
 // Stepper 
 #define STEP_PIN    18
@@ -18,13 +22,28 @@
 #define ACCELERATION  20000
 #define R_SENSE     0.11f
 
-// Screen
-#define 
+//SCREEN
+#define TFT_CS    27
+#define TFT_DC    26
+#define TFT_RST   25
+#define TFT_SCLK  22
+#define TFT_MOSI  21
 
+// BUYTTON PINS
+#define UP_BTN  
+#define OK_BTN  
+#define DOWN_BTN    
+
+
+// -------------------------------- OBJECT CREATION --------------------------------
+
+Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS,TFT_DC,TFT_MOSI,TFT_SCLK,TFT_RST);
 TMC2208Stepper driver(&Serial2, R_SENSE);
 AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
-
 MPU6050 mpu;
+
+
+// -------------------------------- DEFINING VARIABLES --------------------------------
 
 float AccX, AccY, AccZ;
 float GyroX, GyroY, GyroZ;
@@ -32,8 +51,6 @@ float gyroAngleX = 0, gyroAngleY = 0;
 float roll, pitch, yaw; 
 float elapsedTime;
 unsigned long currentTime, previousTime;
-
-
 
 //--------------------------------- IMU ANGLE DETECTION ---------------------------------
 struct Angles {
@@ -80,6 +97,53 @@ Angles getAngle() {
     return {round(roll), round(pitch)};
 }
 
+bool isValidAngle(int(roll),int(pitch)){
+    if (abs(roll)<10 && abs(pitch)<10){
+        digitalWrite(25,LOW);
+        return true;
+    }
+    else{
+        digitalWrite(25,HIGH);
+        return false;
+    }
+}
+
+
+
+// Gets the screen up and working
+// void setup() {
+//   SPI.begin(TFT_SCLK, -1, TFT_MOSI, TFT_CS);
+//   tft.initR(INITR_GREENTAB);
+//   tft.setRotation(0);
+//   tft.fillScreen(ST77XX_WHITE);
+//   tft.setTextColor(ST77XX_BLACK);
+//   tft.setTextSize(2);
+//   tft.setCursor(15,40);
+//   tft.println("HELLO");
+//   tft.setCursor(15,80);
+//   tft.println("PIPETTE");
+// }
+
+
+
+void moveStepper(int steps) {
+    stepper.move(steps);          // relative move from current position
+
+    while (stepper.distanceToGo() != 0) {
+        stepper.run();            // must be called repeatedly
+    }
+}
+
+// void buttonClickTest(){
+//     if (digitalRead(32) == HIGH) {
+//         moveStepper(3200);        // 1 revolution at 200 steps/rev × 8 microsteps
+//         delay(300);
+//     } else if (digitalRead(33) == HIGH) {
+//         moveStepper(-3200);        // 1 revolution at 200 steps/rev × 8 microsteps
+//         delay(300);
+//     }
+// }
+
 
 
 void setup() {
@@ -115,39 +179,6 @@ void setup() {
 }
 
 
-
-boolean isValidAngle(int(roll),int(pitch)){
-    if (abs(roll)<10 && abs(pitch)<10){
-        digitalWrite(25,LOW);
-        return true;
-    }
-    else{
-        digitalWrite(25,HIGH);
-        return false;
-    }
-}
-
-
-void moveStepper(int steps) {
-    stepper.move(steps);          // relative move from current position
-
-    while (stepper.distanceToGo() != 0) {
-        stepper.run();            // must be called repeatedly
-    }
-}
-
-// void buttonClickTest(){
-//     if (digitalRead(32) == HIGH) {
-//         moveStepper(3200);        // 1 revolution at 200 steps/rev × 8 microsteps
-//         delay(300);
-//     } else if (digitalRead(33) == HIGH) {
-//         moveStepper(-3200);        // 1 revolution at 200 steps/rev × 8 microsteps
-//         delay(300);
-//     }
-// }
-
-
-
 void loop() {
     Angles angles = getAngle();
     Serial.print("Roll: ");
@@ -165,3 +196,5 @@ void loop() {
 //         buttonClickTest();
 //     };
 }
+
+
