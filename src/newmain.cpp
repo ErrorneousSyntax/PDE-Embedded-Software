@@ -5,19 +5,21 @@
 #include <MPU6050.h>
 
 
+// Stepper 
 #define STEP_PIN    18
 #define DIR_PIN     19
-#define EN_PIN      5
+#define EN_PIN      15
 #define RX_PIN      16
 #define TX_PIN      17
-
 // STEPPER DRIVER CONFIG
 #define MICROSTEPS      8
 #define STEPS_PER_REV   200
 #define MAX_SPEED     12000
 #define ACCELERATION  20000
-
 #define R_SENSE     0.11f
+
+// Screen
+#define 
 
 TMC2208Stepper driver(&Serial2, R_SENSE);
 AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
@@ -67,7 +69,7 @@ Angles getAngle() {
 
     float alpha;
     if (accelReliable) {
-        alpha = 0.98;   // gyro dominant, slow accel correction
+        alpha = 0.9;   // gyro dominant, slow accel correction
     } else {
         alpha = 1.0;    // ignore accel, gyro only
     }
@@ -85,7 +87,7 @@ void setup() {
     delay(1000);
 
     //IMU
-    Wire.begin(21, 22);
+    Wire.begin(33, 32);
     delay(100);
     mpu.initialize();
     Serial.println(mpu.testConnection() ? "MPU6050 connected" : "MPU6050 failed");
@@ -106,10 +108,10 @@ void setup() {
     stepper.move(-10000);      // changing this value to calibrate
     digitalWrite(EN_PIN, LOW);    // enable driver after config
 
-    //LEDs and other shit
-    pinMode(25, OUTPUT);
-    pinMode(32, INPUT_PULLDOWN); //button with pulldown resistor in place -> prevents floating (noise, nearby wires etc.)
-    pinMode(33, INPUT_PULLDOWN); // pull back button for testing
+    // //LEDs and other shit
+    // pinMode(25, OUTPUT);
+    // pinMode(32, INPUT_PULLDOWN); //button with pulldown resistor in place -> prevents floating (noise, nearby wires etc.)
+    // pinMode(33, INPUT_PULLDOWN); // pull back button for testing
 }
 
 
@@ -134,38 +136,32 @@ void moveStepper(int steps) {
     }
 }
 
-void buttonClickTest(){
-    if (digitalRead(32) == HIGH) {
-        moveStepper(3200);        // 1 revolution at 200 steps/rev × 8 microsteps
-        delay(300);
-    } else if (digitalRead(33) == HIGH) {
-        moveStepper(-3200);        // 1 revolution at 200 steps/rev × 8 microsteps
-        delay(300);
-    }
-}
+// void buttonClickTest(){
+//     if (digitalRead(32) == HIGH) {
+//         moveStepper(3200);        // 1 revolution at 200 steps/rev × 8 microsteps
+//         delay(300);
+//     } else if (digitalRead(33) == HIGH) {
+//         moveStepper(-3200);        // 1 revolution at 200 steps/rev × 8 microsteps
+//         delay(300);
+//     }
+// }
 
 
 
 void loop() {
-    // TESTING IMU
-    // Angles angles = getAngle();
-    // Serial.print("Roll: ");
-    // Serial.println(angles.roll);
-    // Serial.print("Pitch: ");
-    // Serial.println(angles.pitch);
-    // delay(50);
+    Angles angles = getAngle();
+    Serial.print("Roll: ");
+    Serial.println(angles.roll);
+    Serial.print("Pitch: ");
+    Serial.println(angles.pitch);
+    delay(50);
 
     // TESTING STEPPER
     // stepper.run();
 
-    
-    Angles angles = getAngle();
-    if(isValidAngle(angles.roll,angles.pitch)){
-        buttonClickTest();
-    };
-
-    
-    // Read the state of the button
-    
-    
+    // button press at valid angle
+//     Angles angles = getAngle();
+//     if(isValidAngle(angles.roll,angles.pitch)){
+//         buttonClickTest();
+//     };
 }
