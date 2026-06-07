@@ -19,7 +19,7 @@
 #define MICROSTEPS      8
 #define STEPS_PER_REV   200
 #define MAX_SPEED     12000
-#define ACCELERATION  10000
+#define ACCELERATION  20000
 #define R_SENSE     0.11f
 
 //SCREEN
@@ -31,7 +31,7 @@
 
 // BUYTTON PINS
 #define UP_BTN  14
-#define OK_BTN  12
+#define OK_BTN  12 // is a boot strapping pin so might need to change
 #define DOWN_BTN  13  
 
 
@@ -49,8 +49,13 @@ float gyroAngleX = 0, gyroAngleY = 0;
 float roll, pitch, yaw; 
 float elapsedTime;
 unsigned long currentTime, previousTime;
-int prev= 0; //1=UP, 2=OK, 3=DOWN 
 
+int value = 0;
+bool bgGreen = false;
+
+bool lastUp = LOW;
+bool lastDown = LOW;
+bool lastOk = LOW;
 //--------------------------------- IMU ANGLE DETECTION ---------------------------------
 struct Angles {
     // Two orientations ensures orthogonality 
@@ -109,55 +114,74 @@ bool isValidAngle(int roll,int pitch){
 
 
 
-// // Gets the screen up and working
-// void setup() {
-//   SPI.begin(TFT_SCLK, -1, TFT_MOSI, TFT_CS);
-//   tft.initR(INITR_GREENTAB);
-//   tft.setRotation(0);
-//   tft.fillScreen(ST77XX_WHITE);
-//   tft.setTextColor(ST77XX_BLACK);
-//   tft.setTextSize(2);
-//   tft.setCursor(15,40);
-//   tft.println("HELLO");
-//   tft.setCursor(15,80);
-//   tft.println("PIPETTE");
-// }
 
 
 
-// void moveStepper(int steps) {
-//     stepper.move(steps);          // relative move from current position
+void moveStepper(int steps) {
+    stepper.move(steps);          // relative move from current position
 
-//     while (stepper.distanceToGo() != 0) {
-//         stepper.run();            // must be called repeatedly
-//     }
-// }
-
-
-// void buttonClickTest(){
-//     if (digitalRead(UP_BTN) == HIGH && prev != 1) {
-//         Serial.println("UP clicked");
-//         prev=1;
-//     } else if (digitalRead(DOWN_BTN) == HIGH && prev != 3) {
-//         Serial.println("DOWN clicked");
-//         prev=3;
-//     }
-//     else if (digitalRead(OK_BTN) == HIGH && prev != 2 ) {
-//         Serial.println("OK clicked");
-//         prev=2;
-//     }
-// }
-
-
-// BUYTTON PINS
-// #define UP_BTN  14;
-// #define OK_BTN  12;
-// #define DOWN_BTN  13;  
+    while (stepper.distanceToGo() != 0) {
+        stepper.run();            // must be called repeatedly
+    }
+}
 
 
 
 
 
+
+void drawScreen() {
+  uint16_t bg = bgGreen ? ST77XX_GREEN : ST77XX_RED;
+
+  tft.fillScreen(bg);
+
+  // box
+  tft.fillRect(35, 45, 60, 50, ST77XX_WHITE);
+  tft.drawRect(35, 45, 60, 50, ST77XX_BLACK);
+
+  // number
+  tft.setTextColor(ST77XX_BLACK);
+  tft.setTextSize(3);
+  tft.setCursor(55, 60);
+  tft.print(value);
+
+  // labels
+  tft.setTextSize(1);
+  tft.setCursor(20, 120);
+  tft.print("UP/DOWN change");
+
+  tft.setCursor(20, 135);
+  tft.print("OK toggles bg");
+}
+
+
+void handleButtons() {
+  bool upNow = digitalRead(UP_BTN);
+  bool downNow = digitalRead(DOWN_BTN);
+  bool okNow = digitalRead(OK_BTN);
+
+  if (upNow == HIGH && lastUp == LOW) {
+    value++;
+    drawScreen();
+    delay(150);
+  }
+
+  if (downNow == HIGH && lastDown == LOW) {
+    value--;
+    drawScreen();
+    delay(150);
+  }
+
+  if (okNow == HIGH && lastOk == LOW) {
+    bgGreen = !bgGreen;
+    drawScreen();
+    delay(150);
+  }
+
+  lastUp = upNow;
+  lastDown = downNow;
+  lastOk = okNow;
+}
 
 // void setup() {
 //     Serial.begin(115200);
@@ -189,23 +213,23 @@ bool isValidAngle(int roll,int pitch){
 //     pinMode(UP_BTN, INPUT_PULLDOWN);
 //     pinMode(DOWN_BTN, INPUT_PULLDOWN); //button with pulldown resistor in place -> prevents floating (noise, nearby wires etc.)
 //     pinMode(OK_BTN, INPUT_PULLDOWN); // pull back button for testing
-
-//     SPI.begin(TFT_SCLK, -1, TFT_MOSI, TFT_CS);
-//     tft.initR(INITR_GREENTAB);
-//     tft.setRotation(0);
-//     tft.fillScreen(ST77XX_WHITE);
-//     tft.setTextColor(ST77XX_BLACK);
-//     tft.setTextSize(2);
-//     tft.setCursor(15,40);
-//     tft.println("HELLO");
-//     tft.setCursor(15,80);
-//     tft.println("PIPETTE");
 // }
 
-// int res=0;
+void setup(){
+    Serial.begin(115200);
 
-// void loop() {
-    //------ IMU testing------
+    pinMode(UP_BTN, INPUT_PULLDOWN);
+    pinMode(DOWN_BTN, INPUT_PULLDOWN);
+    pinMode(OK_BTN, INPUT_PULLDOWN);
+
+    tft.initR(INITR_GREENTAB);
+    tft.setRotation(0);
+
+    drawScreen();
+}
+
+
+void loop() {
     // Angles angles = getAngle();
     // Serial.print("Roll: ");
     // Serial.println(angles.roll);
@@ -213,62 +237,16 @@ bool isValidAngle(int roll,int pitch){
     // Serial.println(angles.pitch);
     // delay(50);
 
-    // ------ IMU w/ button w/ stepper testing------
+    // TESTING STEPPER
+    // stepper.run();
 
     // Angles angles = getAngle();
     // if(isValidAngle(angles.roll,angles.pitch)){
     //     buttonClickTest();
     // };
-    // buttonClickTest();
-// }
+    //buttonClickTest();
+    handleButtons();
 
-#define UP_BTN    14
-#define OK_BTN    12
-#define DOWN_BTN  13
-
-bool prevUP = LOW;
-bool prevOK = LOW;
-bool prevDOWN = LOW;
-
-int handleButtonClicks() {
-  bool upNow = digitalRead(UP_BTN);
-  bool okNow = digitalRead(OK_BTN);
-  bool downNow = digitalRead(DOWN_BTN);
-
-  int result = 0;
-
-  if (upNow == HIGH && prevUP == LOW) {
-    result = 1;
-  }
-  else if (okNow == HIGH && prevOK == LOW) {
-    result = 2;
-  }
-  else if (downNow == HIGH && prevDOWN == LOW) {
-    result = 3;
-  }
-
-  prevUP = upNow;
-  prevOK = okNow;
-  prevDOWN = downNow;
-
-  delay(30); // debounce
-
-  return result;
 }
 
-void setup() {
-  Serial.begin(115200);
-
-  pinMode(UP_BTN, INPUT_PULLDOWN);
-  pinMode(OK_BTN, INPUT_PULLDOWN);
-  pinMode(DOWN_BTN, INPUT_PULLDOWN);
-}
-
-void loop() {
-  int button = handleButtonClicks();
-
-  if (button != 0) {
-    Serial.println(button);
-  }
-}
 
