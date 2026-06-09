@@ -12,8 +12,8 @@
 // Driver config
 #define MICROSTEPS    8
 #define STEPS_PER_REV   200
-#define MAX_SPEED 1000
-#define ACCELERATION 500
+#define MAX_SPEED 1200
+#define ACCELERATION 300
 #define R_SENSE       0.11f
 
 TMC2208Stepper driver(&Serial2, R_SENSE);

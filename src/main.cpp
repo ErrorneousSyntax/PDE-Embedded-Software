@@ -11,17 +11,20 @@
 
 void setup() {
   Serial.begin(115200);
-  delay(500);
+  delay(1000);
 
-  Wire.begin(SDA_PIN, SCL_PIN);
-  Wire.setClock(400000);
-
-  setupStepper();
-  setupEncoder();
+  Serial.println("IMU test starting...");
+  setupIMU();
 }
 
 void loop() {
-  printEncoderDebug();
+  Angles angles = getAngle();
 
-  delay(100);
+  Serial.println("Roll: ");
+  Serial.println(angles.roll);
+
+  Serial.println(" | Pitch: ");
+  Serial.println(angles.pitch);
+
+  delay(50);
 }
