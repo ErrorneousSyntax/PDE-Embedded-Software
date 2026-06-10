@@ -77,6 +77,6 @@ Angles getAngle() {
 bool isValidAngle(int roll, int pitch) {
     return (
         abs(roll) < 10 &&
-        abs(pitch) < 10
+        abs(pitch) < 10 // TOLERENCES SET AT +- 10 DEGREES FOR DA TIME BEING
     );
 }

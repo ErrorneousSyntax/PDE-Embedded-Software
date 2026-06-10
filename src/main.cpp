@@ -9,22 +9,29 @@
 #define SDA_PIN 33
 #define SCL_PIN 32
 
+// FSM 
+enum State {
+  HOME,
+  PRE_ASPIRATE,
+  ASPIRATING,
+  PRE_DISPENSE,
+  DISPENSING,
+  INBETWEEN,
+  ERROR_STATE,
+  PAUSE
+};
+
+State currentState = HOME;
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
 
   Serial.println("IMU test starting...");
+  setupStepper();
   setupIMU();
 }
 
 void loop() {
-  Angles angles = getAngle();
-
-  Serial.println("Roll: ");
-  Serial.println(angles.roll);
-
-  Serial.println(" | Pitch: ");
-  Serial.println(angles.pitch);
-
-  delay(50);
+    testStepperBackAndForth();
 }

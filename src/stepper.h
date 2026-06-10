@@ -8,5 +8,6 @@ void enableStepper();
 void disableStepper();
 void moveStepper(int steps);
 void updateStepper();
+void testStepperBackAndForth();
 
 #endif

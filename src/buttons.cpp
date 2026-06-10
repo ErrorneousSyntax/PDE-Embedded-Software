@@ -21,9 +21,9 @@ int handleButtonClicks() {
 
   int result = 0;
 
-  if (upNow == HIGH && prevUP == LOW) result = 1;
-  else if (okNow == HIGH && prevOK == LOW) result = 2;
-  else if (downNow == HIGH && prevDOWN == LOW) result = 3;
+  if (upNow == HIGH && prevUP == LOW) result = 1; // UP IS 1
+  else if (okNow == HIGH && prevOK == LOW) result = 2; // OK IS 2
+  else if (downNow == HIGH && prevDOWN == LOW) result = 3; // DOWN IS 3
 
   prevUP = upNow;
   prevOK = okNow;
