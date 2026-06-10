@@ -1,19 +1,34 @@
 #include "settings.h"
 
-static const float STEPS_PER_UL = 10.0f; 
-// TODO: calibrate this properly for your syringe / lead screw / pipette geometry
+static const float STEPS_PER_UL = 10.0f;
+// TODO: calibrate this experimentally
 
 void setupSettings(PipetteSettings &settings) {
-  settings.wellCount = 96;
-  settings.wellType = FLAT_BOTTOM;
+  settings.dispenseVolume_uL = 10.0f;
+  settings.wellCount = 8;
 
-  settings.workingVolume_uL = 100.0f;
-  settings.liquidPerDispense_uL = 10.0f;
+  settings.incrementEnabled = false;
+  settings.incrementPerWell_uL = 0.0f;
 
-  settings.aspirateSteps = volumeToSteps(settings.workingVolume_uL);
-  settings.dispenseSteps = volumeToSteps(settings.liquidPerDispense_uL);
+  resetExperiment(settings);
+}
 
+void resetExperiment(PipetteSettings &settings) {
   settings.currentWell = 0;
+  settings.currentDispenseVolume_uL = settings.dispenseVolume_uL;
+  settings.dispenseSteps = volumeToSteps(settings.currentDispenseVolume_uL);
+}
+
+void updateCurrentDispenseVolume(PipetteSettings &settings) {
+  if (settings.incrementEnabled) {
+    settings.currentDispenseVolume_uL =
+      settings.dispenseVolume_uL + 
+      (settings.currentWell * settings.incrementPerWell_uL);
+  } else {
+    settings.currentDispenseVolume_uL = settings.dispenseVolume_uL;
+  }
+
+  settings.dispenseSteps = volumeToSteps(settings.currentDispenseVolume_uL);
 }
 
 long volumeToSteps(float volume_uL) {

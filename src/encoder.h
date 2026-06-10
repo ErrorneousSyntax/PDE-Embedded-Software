@@ -7,5 +7,6 @@ bool isEncoderConnected();
 
 uint16_t getEncoderRaw();
 float getEncoderAngleDeg();
+bool isEncoderStable();
 
 void printEncoderDebug();

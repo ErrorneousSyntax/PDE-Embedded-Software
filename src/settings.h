@@ -3,26 +3,22 @@
 
 #include <Arduino.h>
 
-enum WellType {
-  FLAT_BOTTOM,
-  U_BOTTOM
-};
-
 struct PipetteSettings {
+  float dispenseVolume_uL;
   int wellCount;
-  WellType wellType;
 
-  float workingVolume_uL;
-  float liquidPerDispense_uL;
-
-  long aspirateSteps;
-  long dispenseSteps;
+  bool incrementEnabled;
+  float incrementPerWell_uL;
 
   int currentWell;
+  float currentDispenseVolume_uL;
+
+  long dispenseSteps;
 };
 
 void setupSettings(PipetteSettings &settings);
-
+void resetExperiment(PipetteSettings &settings);
+void updateCurrentDispenseVolume(PipetteSettings &settings);
 long volumeToSteps(float volume_uL);
 
 #endif

@@ -80,3 +80,45 @@ bool isValidAngle(int roll, int pitch) {
         abs(pitch) < 10 // TOLERENCES SET AT +- 10 DEGREES FOR DA TIME BEING
     );
 }
+
+bool isIMUStable() {
+  static bool firstRun = true;
+  static float lastRoll = 0.0f;
+  static float lastPitch = 0.0f;
+  static unsigned long stableStartTime = 0;
+
+  const float STABLE_TOLERANCE_DEG = 2.0f;
+  const unsigned long REQUIRED_STABLE_TIME_MS = 1000;
+
+  Angles angles = getAngle();
+
+  if (!isValidAngle(angles.roll, angles.pitch)) {
+    firstRun = true;
+    stableStartTime = 0;
+    return false;
+  }
+
+  if (firstRun) {
+    lastRoll = angles.roll;
+    lastPitch = angles.pitch;
+    stableStartTime = millis();
+    firstRun = false;
+    return false;
+  }
+
+  float rollDiff = abs(angles.roll - lastRoll);
+  float pitchDiff = abs(angles.pitch - lastPitch);
+
+  if (rollDiff <= STABLE_TOLERANCE_DEG && pitchDiff <= STABLE_TOLERANCE_DEG) {
+    if (millis() - stableStartTime >= REQUIRED_STABLE_TIME_MS) {
+      return true;
+    }
+  } else {
+    stableStartTime = millis();
+  }
+
+  lastRoll = angles.roll;
+  lastPitch = angles.pitch;
+
+  return false;
+}

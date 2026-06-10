@@ -10,4 +10,6 @@ void setupIMU();
 Angles getAngle();
 bool isValidAngle(int roll, int pitch);
 
+bool isIMUStable();
+
 #endif
