@@ -6,7 +6,8 @@
 #include "imu.h"
 #include "encoder.h"
 #include "settings.h"
-#include "ui.h"
+#include "tft.h"
+
 
 #define SDA_PIN 33
 #define SCL_PIN 32
@@ -280,25 +281,40 @@ void updateFSM(ButtonEvent button) {
     }
 }
 
+// void setup() {
+//     Serial.begin(115200);
+//     delay(1000);
+
+//     Wire.begin(SDA_PIN, SCL_PIN);
+
+//     setupStepper();
+//     setupIMU();
+//     setupEncoder();
+
+//     setupSettings(settings);
+
+//     enterState(HOME);
+// }
+
+// void loop() {
+//     ButtonEvent button = readButtonEvent();
+
+//     updateFSM(button);
+
+//     updateStepper();
+// }
+
+// ---------CALIBRATION--------------
+
 void setup() {
     Serial.begin(115200);
     delay(1000);
 
-    Wire.begin(SDA_PIN, SCL_PIN);
-
     setupStepper();
-    setupIMU();
-    setupEncoder();
-
-    setupSettings(settings);
-
-    enterState(HOME);
+    stepperForwards(50000);
+    //stepperBackwards(100000);
 }
 
 void loop() {
-    ButtonEvent button = readButtonEvent();
-
-    updateFSM(button);
-
-    updateStepper();
+    disableStepper();
 }

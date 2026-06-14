@@ -5,5 +5,6 @@
 
 void setupButtons();
 int handleButtonClicks();
+void testButtons();
 
 #endif

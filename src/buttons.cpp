@@ -32,3 +32,16 @@ int handleButtonClicks() {
   delay(30);
   return result;
 }
+void testButtons() {
+  int button = handleButtonClicks();
+
+  if (button == 1) {
+    Serial.println("UP clicked");
+  } 
+  else if (button == 2) {
+    Serial.println("OK clicked");
+  } 
+  else if (button == 3) {
+    Serial.println("DOWN clicked");
+  }
+}

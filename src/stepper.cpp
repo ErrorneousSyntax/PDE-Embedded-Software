@@ -12,8 +12,8 @@
 // Driver config
 #define MICROSTEPS    8
 #define STEPS_PER_REV   200
-#define MAX_SPEED 12000
-#define ACCELERATION 10000
+#define MAX_SPEED 10000
+#define ACCELERATION 5000
 #define R_SENSE       0.11f
 
 TMC2208Stepper driver(&Serial2, R_SENSE);
@@ -32,7 +32,7 @@ void setupStepper() {
   driver.microsteps(MICROSTEPS);
   driver.pwm_autoscale(true);
   driver.pwm_autograd(true);
-  driver.en_spreadCycle(true);
+  driver.en_spreadCycle(false);
 
   stepper.setMaxSpeed(MAX_SPEED);
   stepper.setAcceleration(ACCELERATION);
@@ -61,9 +61,25 @@ void updateStepper() {
   
 }
 
-void testStepperBackAndForth() {
-  moveStepper(800);
+void stepperForwards(int steps) {
+  moveStepper(steps);
   delay(500);
-  moveStepper(-800);
+}
+
+void stepperBackwards(int steps){
+  moveStepper(-steps);
   delay(500);
+}
+
+void stepperMoveRelative(long steps) {
+  enableStepper();
+  stepper.move(steps);
+}
+
+bool stepperMoveComplete() {
+  return stepper.distanceToGo() == 0;
+}
+
+void stopStepper() {
+  stepper.stop();
 }

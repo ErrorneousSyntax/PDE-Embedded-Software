@@ -8,8 +8,8 @@ struct Angles {
 
 void setupIMU();
 Angles getAngle();
-bool isValidAngle(int roll, int pitch);
+bool isValidAngle();
 
 bool isIMUStable();
-
+void testIMU();
 #endif

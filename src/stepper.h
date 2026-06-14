@@ -8,6 +8,13 @@ void enableStepper();
 void disableStepper();
 void moveStepper(int steps);
 void updateStepper();
-void testStepperBackAndForth();
+void stepperForwards(int steps);
+void stepperBackwards(int steps);
+
+
+void stepperMoveRelative(long steps);
+bool stepperMoveComplete();
+void stopStepper();
+void updateStepper();
 
 #endif

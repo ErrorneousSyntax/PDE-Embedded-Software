@@ -30,57 +30,49 @@ void setupIMU() {
 }
 
 Angles getAngle() {
-    int16_t ax, ay, az, gx, gy, gz;
+    int16_t ax, ay, az;
 
     mpu.getAcceleration(&ax, &ay, &az);
 
-    float AccX = ax / 16384.0;
-    float AccY = ay / 16384.0;
-    float AccZ = az / 16384.0;
+    float AccX = ax / 16384.0f;
+    float AccY = ay / 16384.0f;
+    float AccZ = az / 16384.0f;
 
-    float pitchAccel = atan2(AccX, AccZ) * 180.0 / PI;
-    float rollAccel  = atan2(AccY, AccZ) * 180.0 / PI;
-
-    previousTime = currentTime;
-    currentTime = millis();
-
-    elapsedTime = (currentTime - previousTime) / 1000.0;
-
-    mpu.getRotation(&gx, &gy, &gz);
-
-    float pitchGyro = gy / 131.0;
-    float rollGyro  = gx / 131.0;
-
-    float accMag = sqrt(
+    float mag = sqrt(
         AccX * AccX +
         AccY * AccY +
         AccZ * AccZ
     );
 
-    bool accelReliable =
-        abs(accMag - 1.0) < 0.15;
+    if (mag == 0) {
+        return {0, 0};
+    }
 
-    float alpha =
-        accelReliable ? 0.9 : 1.0;
+    AccX /= mag;
+    AccY /= mag;
+    AccZ /= mag;
 
-    pitch =
-        alpha * (pitch + pitchGyro * elapsedTime)
-        + (1 - alpha) * pitchAccel;
+    // Upside-down mount: use -AccZ as the reference axis
+    float pitchAngle = atan2(AccX, -AccZ) * 180.0f / PI;
+    float rollAngle  = atan2(AccY, -AccZ) * 180.0f / PI;
 
-    roll =
-        alpha * (roll + rollGyro * elapsedTime)
-        + (1 - alpha) * rollAccel;
-
-    return {round(roll), round(pitch)};
+    return {
+        round(rollAngle),
+        round(pitchAngle)
+    };
 }
 
-bool isValidAngle(int roll, int pitch) {
+bool isValidAngle() {
+    Angles angles = getAngle();
+
+    float roll = angles.roll;
+    float pitch = angles.pitch;
+
     return (
         abs(roll) < 10 &&
-        abs(pitch) < 10 // TOLERENCES SET AT +- 10 DEGREES FOR DA TIME BEING
+        abs(pitch) < 10
     );
 }
-
 bool isIMUStable() {
   static bool firstRun = true;
   static float lastRoll = 0.0f;
@@ -92,7 +84,7 @@ bool isIMUStable() {
 
   Angles angles = getAngle();
 
-  if (!isValidAngle(angles.roll, angles.pitch)) {
+  if (!isValidAngle()) {
     firstRun = true;
     stableStartTime = 0;
     return false;
@@ -121,4 +113,22 @@ bool isIMUStable() {
   lastPitch = angles.pitch;
 
   return false;
+}
+
+void testIMU() {
+    Angles angles = getAngle();
+
+    Serial.print("Roll: ");
+    Serial.print(angles.roll);
+
+    Serial.print(" | Pitch: ");
+    Serial.print(angles.pitch);
+
+    Serial.print(" | Valid angle: ");
+    Serial.print(isValidAngle() ? "YES" : "NO");
+
+    Serial.print(" | Stable: ");
+    Serial.println(isIMUStable() ? "YES" : "NO");
+
+    delay(100);
 }
