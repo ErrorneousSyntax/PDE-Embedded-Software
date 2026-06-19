@@ -11,10 +11,10 @@ void updateStepper();
 void stepperForwards(int steps);
 void stepperBackwards(int steps);
 
-
 void stepperMoveRelative(long steps);
 bool stepperMoveComplete();
 void stopStepper();
-void updateStepper();
+void cancelStepperMove();
+void buttonMoveStepper(int button);
 
 #endif

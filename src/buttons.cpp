@@ -1,47 +1,68 @@
-#include <Arduino.h>
+#include "buttons.h"
 
-#define UP_BTN    14
+#define UP_BTN    13
 #define OK_BTN    12
-#define DOWN_BTN  13
+#define DOWN_BTN  14
 
-bool prevUP = LOW;
-bool prevOK = LOW;
-bool prevDOWN = LOW;
+#define DEBOUNCE_MS 25
+
+struct DebouncedButton {
+  uint8_t pin;
+  bool rawState;
+  bool stableState;
+  unsigned long changedAt;
+  ButtonEvent event;
+};
+
+DebouncedButton buttons[] = {
+  {UP_BTN, LOW, LOW, 0, BUTTON_UP},
+  {OK_BTN, LOW, LOW, 0, BUTTON_OK},
+  {DOWN_BTN, LOW, LOW, 0, BUTTON_DOWN}
+};
 
 void setupButtons() {
-  pinMode(UP_BTN, INPUT_PULLDOWN);
-  pinMode(OK_BTN, INPUT_PULLDOWN);
-  pinMode(DOWN_BTN, INPUT_PULLDOWN);
+  for (DebouncedButton &button : buttons) {
+    pinMode(button.pin, INPUT_PULLDOWN);
+    button.rawState = digitalRead(button.pin);
+    button.stableState = button.rawState;
+    button.changedAt = millis();
+  }
 }
 
-int handleButtonClicks() {
-  bool upNow = digitalRead(UP_BTN);
-  bool okNow = digitalRead(OK_BTN);
-  bool downNow = digitalRead(DOWN_BTN);
+ButtonEvent handleButtonClicks() {
+  unsigned long now = millis();
 
-  int result = 0;
+  for (DebouncedButton &button : buttons) {
+    bool reading = digitalRead(button.pin);
 
-  if (upNow == HIGH && prevUP == LOW) result = 1; // UP IS 1
-  else if (okNow == HIGH && prevOK == LOW) result = 2; // OK IS 2
-  else if (downNow == HIGH && prevDOWN == LOW) result = 3; // DOWN IS 3
+    if (reading != button.rawState) {
+      button.rawState = reading;
+      button.changedAt = now;
+    }
 
-  prevUP = upNow;
-  prevOK = okNow;
-  prevDOWN = downNow;
+    if (reading != button.stableState &&
+        now - button.changedAt >= DEBOUNCE_MS) {
+      button.stableState = reading;
 
-  delay(30);
-  return result;
+      if (button.stableState == HIGH) {
+        return button.event;
+      }
+    }
+  }
+
+  return BUTTON_NONE;
 }
+
 void testButtons() {
-  int button = handleButtonClicks();
+  ButtonEvent button = handleButtonClicks();
 
-  if (button == 1) {
+  if (button == BUTTON_UP) {
     Serial.println("UP clicked");
   } 
-  else if (button == 2) {
+  else if (button == BUTTON_OK) {
     Serial.println("OK clicked");
   } 
-  else if (button == 3) {
+  else if (button == BUTTON_DOWN) {
     Serial.println("DOWN clicked");
   }
 }

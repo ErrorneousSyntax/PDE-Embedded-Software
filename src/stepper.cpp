@@ -83,3 +83,16 @@ bool stepperMoveComplete() {
 void stopStepper() {
   stepper.stop();
 }
+
+void cancelStepperMove() {
+  stepper.setCurrentPosition(stepper.currentPosition());
+}
+
+void buttonMoveStepper(int button){
+    if (button == 1) {
+    moveStepper(1000);
+  } 
+  else if (button == 3) {
+    moveStepper(-1000);
+  }
+}

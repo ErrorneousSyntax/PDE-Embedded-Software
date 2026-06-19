@@ -3,8 +3,15 @@
 
 #include <Arduino.h>
 
+enum ButtonEvent {
+  BUTTON_NONE,
+  BUTTON_UP,
+  BUTTON_OK,
+  BUTTON_DOWN
+};
+
 void setupButtons();
-int handleButtonClicks();
+ButtonEvent handleButtonClicks();
 void testButtons();
 
 #endif

@@ -7,18 +7,34 @@
 #include <Fonts/FreeSansBold9pt7b.h>
 #include <Fonts/FreeSans9pt7b.h>
 
+#include "integra_logo.h"
+
 // TFT pins
 #define TFT_CS    27
 #define TFT_RST   25
 #define TFT_DC    26
 #define TFT_SCLK  22
-#define TFT_MOSI  21
+#define TFT_MOSI  23
 
 #define SCREEN_W  128
 #define SCREEN_H  160
-#define BORDER_T  10
+#define BORDER_T  5
+// Breadboard/jumper wiring can become unreliable at higher SPI clocks.
+// 12 MHz remains much faster than software SPI without edge artefacts.
+#define TFT_SPI_HZ 12000000
 
-Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
+class PipetteTFT : public Adafruit_ST7735 {
+ public:
+  using Adafruit_ST7735::Adafruit_ST7735;
+
+  void setPanelOffset(int8_t column, int8_t row) {
+    setColRowStart(column, row);
+  }
+};
+
+// Use the ESP32 SPI peripheral. Supplying MOSI/SCLK to the display
+// constructor selects much slower software SPI.
+PipetteTFT tft = PipetteTFT(TFT_CS, TFT_DC, TFT_RST);
 
 #define WHITE ST77XX_WHITE
 #define BLACK ST77XX_BLACK
@@ -32,6 +48,36 @@ uint16_t GREY;
 uint16_t OFF_WHITE;
 uint16_t PURE_WHITE;
 uint16_t BLUSH_PINK;
+
+enum TftPage {
+  PAGE_NONE,
+  PAGE_HOME,
+  PAGE_SETUP,
+  PAGE_PRE_ASPIRATION_TILT,
+  PAGE_PRE_ASPIRATION_PRESS,
+  PAGE_ASPIRATING,
+  PAGE_ASPIRATION_COMPLETE,
+  PAGE_PRE_DISPENSE_TILT,
+  PAGE_PRE_DISPENSE_PRESS,
+  PAGE_DISPENSING,
+  PAGE_MOVE_TO_WELL,
+  PAGE_PAUSE,
+  PAGE_COMPLETE,
+  PAGE_ERROR
+};
+
+TftPage activePage = PAGE_NONE;
+
+struct SetupRenderCache {
+  float volume;
+  int wells;
+  bool incrementEnabled;
+  float incrementAmount;
+  int selectedRow;
+  bool editing;
+};
+
+SetupRenderCache setupCache;
 
 void initColours() {
   DARK_CHARCOAL = tft.color565(30, 30, 30);
@@ -52,11 +98,28 @@ void drawBorder(int thickness, uint16_t colour) {
   tft.fillRect(SCREEN_W - thickness, 0, thickness, SCREEN_H, colour);
 }
 
+bool beginPage(TftPage page, uint16_t borderColour) {
+  if (activePage == page) {
+    return false;
+  }
+
+  activePage = page;
+  tft.fillScreen(WHITE);
+  drawBorder(BORDER_T, borderColour);
+  return true;
+}
+
 void setupTFT() {
+  SPI.begin(TFT_SCLK, -1, TFT_MOSI, TFT_CS);
+  // Keep the black-tab colour order, but apply this panel's 2x1 RAM offset.
+  // GREENTAB fixes the offset but changes the colour order on this display.
   tft.initR(INITR_BLACKTAB);
+  tft.setPanelOffset(2, 1);
+  tft.setSPISpeed(TFT_SPI_HZ);
   tft.setRotation(0);
   initColours();
   tft.fillScreen(WHITE);
+  activePage = PAGE_NONE;
 }
 
 void testTFT() {
@@ -65,7 +128,7 @@ void testTFT() {
   drawHomePage(settings);
   delay(1200);
 
-  drawSetupPage(settings, 0);
+  drawSetupPage(settings, 0, false);
   delay(1200);
 
   drawPreAspirationTiltPage(settings, false);
@@ -97,68 +160,155 @@ void testTFT() {
 }
 
 void drawHomePage(const PipetteSettings &settings) {
-  tft.fillScreen(WHITE);
-  drawBorder(BORDER_T, TEAL);
+  if (!beginPage(PAGE_HOME, TEAL)) {
+    return;
+  }
 
-  tft.fillRoundRect(24, 65, 80, 36, 8, TEAL);
-  tft.fillRoundRect(29, 70, 70, 26, 3, OFF_WHITE);
+  tft.drawRGBBitmap(
+    (SCREEN_W - INTEGRA_LOGO_WIDTH) / 2,
+    18,
+    INTEGRA_LOGO_BITMAP,
+    INTEGRA_LOGO_WIDTH,
+    INTEGRA_LOGO_HEIGHT
+  );
 
-  tft.fillRoundRect(24, 100, 80, 36, 8, TEAL);
-  tft.fillRoundRect(29, 105, 70, 26, 3, OFF_WHITE);
+  tft.fillRoundRect(19, 65, 90, 38, 8, TEAL);
+  tft.fillRoundRect(24, 70, 80, 28, 3, OFF_WHITE);
 
   tft.setFont(&FreeSans9pt7b);
   tft.setTextSize(1);
   tft.setTextColor(BLACK);
-
-  tft.setCursor(45, 87);
-  tft.print("Start");
-
-  tft.fillTriangle(112, 69, 107, 77, 117, 77, TEAL);
-  tft.fillTriangle(112, 95, 107, 87, 117, 87, TEAL);
-
-  tft.setCursor(40, 123);
+  tft.setCursor(35, 89);
   tft.print("Setup");
+
 }
 
-void drawSetupPage(const PipetteSettings &settings, int selectedSetting) {
-  tft.fillScreen(WHITE);
-  drawBorder(BORDER_T, TEAL);
-
-  tft.setFont(&FreeSansBold9pt7b);
+void drawSetupRow(
+  const PipetteSettings &settings,
+  int row,
+  int selectedSetting,
+  bool editing
+) {
+  tft.setFont();
   tft.setTextSize(1);
-  tft.setTextColor(BLACK);
-  tft.setCursor(44, 28);
-  tft.print("Setup");
 
-  tft.fillRoundRect(14, 37, 100, 36, 6, TEAL);
-  tft.fillRoundRect(17, 40, 94, 30, 3, OFF_WHITE);
+  const int rowX = 14;
+  const int rowW = 100;
+  const int rowH = 19;
+  const int firstRowY = 34;
+  const int rowGap = 23;
 
-  tft.setFont(&FreeSans9pt7b);
-  tft.setCursor(18, 53);
-  tft.print("No. of");
-  tft.setCursor(18, 67);
-  tft.print("Wells");
-  tft.setCursor(86, 60);
-  tft.print(settings.wellCount);
+  int y = firstRowY + row * rowGap;
+  bool selected = row == selectedSetting;
 
-  tft.fillRoundRect(14, 75, 100, 26, 6, TEAL);
-  tft.fillRoundRect(17, 78, 94, 20, 3, OFF_WHITE);
-  tft.setCursor(22, 93);
-  tft.print("Vol");
-  tft.setCursor(86, 93);
-  tft.print(settings.dispenseVolume_uL);
+  // Clear the complete row area so the previous selection frame disappears.
+  tft.fillRect(rowX - 3, y - 3, rowW + 6, rowH + 6, WHITE);
 
-  tft.fillRoundRect(14, 105, 100, 26, 6, TEAL);
-  tft.fillRoundRect(17, 108, 94, 20, 3, OFF_WHITE);
-  tft.setCursor(22, 122);
-  tft.print("Step");
-  tft.setCursor(86, 122);
-  tft.print(settings.incrementPerWell_uL);
+  if (selected && editing) {
+    tft.fillRoundRect(rowX - 3, y - 3, rowW + 6, rowH + 6, 6, TEAL);
+  } else if (selected) {
+    // A filled outer shape plus a smaller light interior creates a solid,
+    // thick teal selection frame.
+    tft.fillRoundRect(rowX - 3, y - 3, rowW + 6, rowH + 6, 6, TEAL);
+    tft.fillRoundRect(rowX + 1, y + 1, rowW - 2, rowH - 2, 3, OFF_WHITE);
+  } else {
+    tft.fillRoundRect(rowX, y, rowW, rowH, 4, OFF_WHITE);
+    tft.drawRoundRect(rowX, y, rowW, rowH, 4, TEAL);
+  }
+
+  tft.setTextColor(selected && editing ? WHITE : BLACK);
+  tft.setCursor(20, y + 6);
+
+  switch (row) {
+    case 0:
+      tft.print("Volume");
+      tft.setCursor(83, y + 6);
+      tft.print(settings.dispenseVolume_uL, 0);
+      break;
+    case 1:
+      tft.print("Wells");
+      tft.setCursor(89, y + 6);
+      tft.print(settings.wellCount);
+      break;
+    case 2:
+      tft.print("Increment");
+      tft.setCursor(84, y + 6);
+      tft.print(settings.incrementEnabled ? "On" : "Off");
+      break;
+    case 3:
+      tft.print("Inc uL");
+      tft.setCursor(83, y + 6);
+      tft.print(settings.incrementPerWell_uL, 0);
+      break;
+    case 4:
+      tft.setCursor(49, y + 6);
+      tft.print("BEGIN");
+      break;
+  }
+}
+
+void drawSetupPage(
+  const PipetteSettings &settings,
+  int selectedSetting,
+  bool editing
+) {
+  bool newPage = beginPage(PAGE_SETUP, TEAL);
+
+  if (newPage) {
+    tft.setFont(&FreeSansBold9pt7b);
+    tft.setTextSize(1);
+    tft.setTextColor(BLACK);
+    tft.setCursor(44, 28);
+    tft.print("Setup");
+
+    for (int row = 0; row < 5; row++) {
+      drawSetupRow(settings, row, selectedSetting, editing);
+    }
+  } else {
+    bool dirtyRows[5] = {false, false, false, false, false};
+
+    dirtyRows[0] = setupCache.volume != settings.dispenseVolume_uL;
+    dirtyRows[1] = setupCache.wells != settings.wellCount;
+    dirtyRows[2] =
+      setupCache.incrementEnabled != settings.incrementEnabled;
+    dirtyRows[3] =
+      setupCache.incrementAmount != settings.incrementPerWell_uL;
+
+    if (setupCache.selectedRow != selectedSetting) {
+      if (setupCache.selectedRow >= 0 && setupCache.selectedRow < 5) {
+        dirtyRows[setupCache.selectedRow] = true;
+      }
+      if (selectedSetting >= 0 && selectedSetting < 5) {
+        dirtyRows[selectedSetting] = true;
+      }
+    }
+
+    if (setupCache.editing != editing &&
+        selectedSetting >= 0 && selectedSetting < 5) {
+      dirtyRows[selectedSetting] = true;
+    }
+
+    for (int row = 0; row < 5; row++) {
+      if (dirtyRows[row]) {
+        drawSetupRow(settings, row, selectedSetting, editing);
+      }
+    }
+  }
+
+  setupCache = {
+    settings.dispenseVolume_uL,
+    settings.wellCount,
+    settings.incrementEnabled,
+    settings.incrementPerWell_uL,
+    selectedSetting,
+    editing
+  };
 }
 
 void drawPreAspirationTiltPage(const PipetteSettings &settings, bool angleOkay) {
-  tft.fillScreen(WHITE);
-  drawBorder(BORDER_T, CORAL_RED);
+  if (!beginPage(PAGE_PRE_ASPIRATION_TILT, CORAL_RED)) {
+    return;
+  }
 
   tft.setFont(&FreeSansBold9pt7b);
   tft.setTextColor(BLACK);
@@ -178,8 +328,9 @@ void drawPreAspirationTiltPage(const PipetteSettings &settings, bool angleOkay) 
 }
 
 void drawPreAspirationPressPage() {
-  tft.fillScreen(WHITE);
-  drawBorder(BORDER_T, TEAL);
+  if (!beginPage(PAGE_PRE_ASPIRATION_PRESS, TEAL)) {
+    return;
+  }
 
   tft.setFont(&FreeSansBold9pt7b);
   tft.setTextColor(BLACK);
@@ -197,8 +348,9 @@ void drawPreAspirationPressPage() {
 }
 
 void drawAspiratingPage() {
-  tft.fillScreen(WHITE);
-  drawBorder(BORDER_T, TEAL);
+  if (!beginPage(PAGE_ASPIRATING, TEAL)) {
+    return;
+  }
 
   tft.setFont(&FreeSansBold9pt7b);
   tft.setTextColor(BLACK);
@@ -215,8 +367,9 @@ void drawAspiratingPage() {
 }
 
 void drawAspirationCompletedPage(const PipetteSettings &settings) {
-  tft.fillScreen(WHITE);
-  drawBorder(BORDER_T, TEAL);
+  if (!beginPage(PAGE_ASPIRATION_COMPLETE, TEAL)) {
+    return;
+  }
 
   tft.setFont(&FreeSansBold9pt7b);
   tft.setTextColor(BLACK);
@@ -231,8 +384,9 @@ void drawAspirationCompletedPage(const PipetteSettings &settings) {
 }
 
 void drawPreDispenseTiltPage(const PipetteSettings &settings, bool angleOkay, bool boardStable) {
-  tft.fillScreen(WHITE);
-  drawBorder(BORDER_T, CORAL_RED);
+  if (!beginPage(PAGE_PRE_DISPENSE_TILT, CORAL_RED)) {
+    return;
+  }
 
   tft.setFont(&FreeSansBold9pt7b);
   tft.setTextColor(BLACK);
@@ -252,8 +406,9 @@ void drawPreDispenseTiltPage(const PipetteSettings &settings, bool angleOkay, bo
 }
 
 void drawPreDispensePressPage() {
-  tft.fillScreen(WHITE);
-  drawBorder(BORDER_T, TEAL);
+  if (!beginPage(PAGE_PRE_DISPENSE_PRESS, TEAL)) {
+    return;
+  }
 
   tft.setFont(&FreeSansBold9pt7b);
   tft.setTextColor(BLACK);
@@ -271,8 +426,9 @@ void drawPreDispensePressPage() {
 }
 
 void drawDispensingPage(const PipetteSettings &settings) {
-  tft.fillScreen(WHITE);
-  drawBorder(BORDER_T, TEAL);
+  if (!beginPage(PAGE_DISPENSING, TEAL)) {
+    return;
+  }
 
   tft.setFont(&FreeSansBold9pt7b);
   tft.setTextColor(BLACK);
@@ -280,17 +436,21 @@ void drawDispensingPage(const PipetteSettings &settings) {
   tft.print("Dispensing");
 
   tft.setFont(&FreeSans9pt7b);
-  tft.setCursor(20, 72);
-  tft.print("Dispensing");
+  tft.setCursor(24, 66);
+  tft.print("Well ");
+  tft.print(settings.currentWell + 1);
+  tft.print("/");
+  tft.print(settings.wellCount);
 
-  tft.fillCircle(30, 95, 10, TEAL);
-  tft.fillCircle(64, 95, 10, TEAL);
-  tft.fillCircle(98, 95, 10, TEAL);
+  tft.setCursor(25, 94);
+  tft.print(settings.currentDispenseVolume_uL, 0);
+  tft.print(" uL");
 }
 
 void drawInbetweenPage(const PipetteSettings &settings) {
-  tft.fillScreen(WHITE);
-  drawBorder(BORDER_T, TEAL);
+  if (!beginPage(PAGE_MOVE_TO_WELL, TEAL)) {
+    return;
+  }
 
   tft.setFont(&FreeSansBold9pt7b);
   tft.setTextColor(BLACK);
@@ -298,15 +458,22 @@ void drawInbetweenPage(const PipetteSettings &settings) {
   tft.print("Dispensing");
 
   tft.setFont(&FreeSans9pt7b);
-  tft.setCursor(30, 70);
+  tft.setCursor(30, 62);
   tft.print("Move to");
-  tft.setCursor(25, 86);
-  tft.print("Next Well");
+  tft.setCursor(22, 82);
+  tft.print("Well ");
+  tft.print(settings.currentWell + 1);
+  tft.print("/");
+  tft.print(settings.wellCount);
+
+  tft.setCursor(22, 116);
+  tft.print("OK when ready");
 }
 
 void drawPausePage(const PipetteSettings &settings) {
-  tft.fillScreen(WHITE);
-  drawBorder(BORDER_T, TEAL);
+  if (!beginPage(PAGE_PAUSE, TEAL)) {
+    return;
+  }
 
   tft.setFont(&FreeSansBold9pt7b);
   tft.setTextColor(BLACK);
@@ -314,15 +481,16 @@ void drawPausePage(const PipetteSettings &settings) {
   tft.print("Paused");
 
   tft.setFont(&FreeSans9pt7b);
-  tft.setCursor(30, 95);
-  tft.print("Continue");
-  tft.setCursor(48, 125);
-  tft.print("Quit");
+  tft.setCursor(18, 88);
+  tft.print("OK: Continue");
+  tft.setCursor(18, 116);
+  tft.print("Down: Quit");
 }
 
 void drawDispenseCompletedPage(const PipetteSettings &settings) {
-  tft.fillScreen(WHITE);
-  drawBorder(BORDER_T, TEAL);
+  if (!beginPage(PAGE_COMPLETE, TEAL)) {
+    return;
+  }
 
   tft.setFont(&FreeSans9pt7b);
   tft.setTextColor(BLACK);
@@ -333,8 +501,9 @@ void drawDispenseCompletedPage(const PipetteSettings &settings) {
 }
 
 void drawErrorPage(const PipetteSettings &settings, const char *message) {
-  tft.fillScreen(WHITE);
-  drawBorder(BORDER_T, CORAL_RED);
+  if (!beginPage(PAGE_ERROR, CORAL_RED)) {
+    return;
+  }
 
   tft.setFont(&FreeSans9pt7b);
   tft.setTextColor(BLACK);

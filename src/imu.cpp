@@ -52,9 +52,9 @@ Angles getAngle() {
     AccY /= mag;
     AccZ /= mag;
 
-    // Upside-down mount: use -AccZ as the reference axis
-    float pitchAngle = atan2(AccX, -AccZ) * 180.0f / PI;
-    float rollAngle  = atan2(AccY, -AccZ) * 180.0f / PI;
+    // Sensor face upward: +Z is the zero-degree reference axis.
+    float pitchAngle = atan2(AccX, AccZ) * 180.0f / PI;
+    float rollAngle  = atan2(AccY, AccZ) * 180.0f / PI;
 
     return {
         round(rollAngle),
@@ -62,16 +62,15 @@ Angles getAngle() {
     };
 }
 
-bool isValidAngle() {
-    Angles angles = getAngle();
-
-    float roll = angles.roll;
-    float pitch = angles.pitch;
-
+bool isValidAngle(const Angles &angles) {
     return (
-        abs(roll) < 10 &&
-        abs(pitch) < 10
+        abs(angles.roll) < 10 &&
+        abs(angles.pitch) < 10
     );
+}
+
+bool isValidAngle() {
+    return isValidAngle(getAngle());
 }
 bool isIMUStable() {
   static bool firstRun = true;

@@ -8,6 +8,7 @@ struct Angles {
 
 void setupIMU();
 Angles getAngle();
+bool isValidAngle(const Angles &angles);
 bool isValidAngle();
 
 bool isIMUStable();

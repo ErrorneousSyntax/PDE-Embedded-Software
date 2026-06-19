@@ -19,6 +19,7 @@ struct PipetteSettings {
 void setupSettings(PipetteSettings &settings);
 void resetExperiment(PipetteSettings &settings);
 void updateCurrentDispenseVolume(PipetteSettings &settings);
+float calculateTotalAspirationVolume(const PipetteSettings &settings);
 long volumeToSteps(float volume_uL);
 
 #endif

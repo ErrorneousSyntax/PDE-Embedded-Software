@@ -31,6 +31,17 @@ void updateCurrentDispenseVolume(PipetteSettings &settings) {
   settings.dispenseSteps = volumeToSteps(settings.currentDispenseVolume_uL);
 }
 
+float calculateTotalAspirationVolume(const PipetteSettings &settings) {
+  float totalVolume = settings.dispenseVolume_uL * settings.wellCount;
+
+  if (settings.incrementEnabled) {
+    totalVolume += settings.incrementPerWell_uL *
+      settings.wellCount * (settings.wellCount - 1) / 2.0f;
+  }
+
+  return totalVolume;
+}
+
 long volumeToSteps(float volume_uL) {
   return (long)(volume_uL * STEPS_PER_UL);
 }

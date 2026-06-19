@@ -8,7 +8,11 @@ void setupTFT();
 void testTFT();
 
 void drawHomePage(const PipetteSettings &settings);
-void drawSetupPage(const PipetteSettings &settings, int selectedSetting);
+void drawSetupPage(
+  const PipetteSettings &settings,
+  int selectedSetting,
+  bool editing
+);
 void drawPreAspirationTiltPage(const PipetteSettings &settings, bool angleOkay);
 void drawPreAspirationPressPage();
 void drawAspiratingPage();
