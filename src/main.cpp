@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+
 #include "buttons.h"
 #include "stepper.h"
 #include "imu.h"
@@ -311,7 +312,7 @@ void setup() {
     delay(1000);
 
     setupStepper();
-    stepperForwards(50000);
+    stepperForwards(5000);
     //stepperBackwards(100000);
 }
 
