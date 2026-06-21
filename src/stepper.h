@@ -4,6 +4,7 @@
 #include <Arduino.h>
 
 void setupStepper();
+void testDriver();
 void enableStepper();
 void disableStepper();
 void moveStepper(int steps);
