@@ -16,7 +16,7 @@
 #define ACCELERATION 5000
 #define R_SENSE       0.11f
 
-TMC2209Stepper driver(&Serial2, R_SENSE, 0b00);
+TMC2208Stepper driver(&Serial2, R_SENSE);
 AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
 
 void testDriver() {

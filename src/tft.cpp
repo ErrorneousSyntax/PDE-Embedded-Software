@@ -124,6 +124,7 @@ void setupTFT() {
 
 void testTFT() {
   PipetteSettings settings;
+  setupSettings(settings);
 
   drawHomePage(settings);
   delay(1200);
@@ -150,6 +151,12 @@ void testTFT() {
   delay(1200);
 
   drawDispensingPage(settings);
+  delay(1200);
+
+  drawInbetweenPage(settings);
+  delay(1200);
+
+  drawPausePage(settings);
   delay(1200);
 
   drawDispenseCompletedPage(settings);
