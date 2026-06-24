@@ -11,6 +11,7 @@ void moveStepper(int steps);
 void updateStepper();
 void stepperForwards(int steps);
 void stepperBackwards(int steps);
+bool homeStepper();
 
 void stepperMoveRelative(long steps);
 bool stepperMoveComplete();

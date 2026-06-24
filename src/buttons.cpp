@@ -3,6 +3,7 @@
 #define UP_BTN    13
 #define OK_BTN    12
 #define DOWN_BTN  14
+#define LIMIT_SWITCH_PIN 17
 
 #define DEBOUNCE_MS 25
 
@@ -27,6 +28,13 @@ void setupButtons() {
     button.stableState = button.rawState;
     button.changedAt = millis();
   }
+
+  // Limit switch is wired as:
+  //   GPIO17 -> limit switch -> GND
+  // INPUT_PULLUP means:
+  //   not pressed = HIGH
+  //   pressed     = LOW
+  pinMode(LIMIT_SWITCH_PIN, INPUT_PULLUP);
 }
 
 ButtonEvent handleButtonClicks() {
@@ -53,6 +61,10 @@ ButtonEvent handleButtonClicks() {
   return BUTTON_NONE;
 }
 
+bool handleLimitSwitch() {
+  return digitalRead(LIMIT_SWITCH_PIN) == LOW;
+}
+
 void testButtons() {
   ButtonEvent button = handleButtonClicks();
 
@@ -64,5 +76,9 @@ void testButtons() {
   } 
   else if (button == BUTTON_DOWN) {
     Serial.println("DOWN clicked");
+  }
+
+  if (handleLimitSwitch()) {
+    Serial.println("LIMIT switch hit");
   }
 }

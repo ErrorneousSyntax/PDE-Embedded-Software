@@ -12,6 +12,7 @@ enum ButtonEvent {
 
 void setupButtons();
 ButtonEvent handleButtonClicks();
+bool handleLimitSwitch();
 void testButtons();
 
 #endif

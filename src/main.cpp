@@ -346,55 +346,53 @@
 // //   }
 // // }
 
-
 #include <Arduino.h>
+#include "buttons.h"
 
-constexpr uint8_t STEP_PIN = 18;
-constexpr uint8_t DIR_PIN = 19;
-constexpr uint8_t EN_PIN = 15;
+/*
+  Limit switch test.
 
-constexpr uint32_t STEPS_PER_MOVE = 2000;
-constexpr uint32_t STEP_HIGH_US = 10;
-constexpr uint32_t STEP_INTERVAL_US = 1000;
-constexpr uint32_t PAUSE_MS = 2000;
+  Limit switch wiring:
+    ESP32 GPIO17 -> limit switch
+    GND          -> other side of limit switch
 
-void moveMotor(bool forward, uint32_t steps) {
-  digitalWrite(DIR_PIN, forward ? HIGH : LOW);
-  delayMicroseconds(20); // TMC2209 direction setup time.
+  GPIO17 uses INPUT_PULLUP in buttons.cpp:
+    not pressed = HIGH
+    pressed     = LOW
+*/
 
-  for (uint32_t step = 0; step < steps; step++) {
-    digitalWrite(STEP_PIN, HIGH);
-    delayMicroseconds(STEP_HIGH_US);
-    digitalWrite(STEP_PIN, LOW);
-    delayMicroseconds(STEP_INTERVAL_US - STEP_HIGH_US);
-  }
-}
+bool lastLimitState = false;
 
 void setup() {
   Serial.begin(115200);
-
-  pinMode(STEP_PIN, OUTPUT);
-  pinMode(DIR_PIN, OUTPUT);
-  pinMode(EN_PIN, OUTPUT);
-
-  digitalWrite(STEP_PIN, LOW);
-  digitalWrite(DIR_PIN, LOW);
-  digitalWrite(EN_PIN, HIGH); // Disabled during startup.
-
   delay(1000);
 
-  digitalWrite(EN_PIN, LOW); // TMC2209 enable is active-low.
-  delay(100);
+  setupButtons();
 
-  Serial.println("Manual STEP/DIR motor test started");
+  lastLimitState = handleLimitSwitch();
+
+  Serial.println();
+  Serial.println("=== Limit switch test ===");
+  Serial.println("Wiring:");
+  Serial.println("  GPIO17 -> limit switch");
+  Serial.println("  GND    -> other side of limit switch");
+  Serial.println();
+  Serial.println("Using INPUT_PULLUP:");
+  Serial.println("  released = HIGH");
+  Serial.println("  pressed  = LOW");
+  Serial.println();
+  Serial.print("Initial limit state: ");
+  Serial.println(lastLimitState ? "PRESSED" : "released");
+  Serial.println("=========================");
 }
 
 void loop() {
-  Serial.println("Forward");
-  moveMotor(true, STEPS_PER_MOVE);
-  delay(PAUSE_MS);
+  bool limitState = handleLimitSwitch();
 
-  Serial.println("Backward");
-  moveMotor(false, STEPS_PER_MOVE);
-  delay(PAUSE_MS);
+  if (limitState != lastLimitState) {
+    lastLimitState = limitState;
+
+    Serial.print("Limit switch: ");
+    Serial.println(limitState ? "PRESSED" : "released");
+  }
 }
