@@ -19,10 +19,6 @@
 #define SCREEN_W  128
 #define SCREEN_H  160
 #define BORDER_T  5
-// Breadboard/jumper wiring can become unreliable at higher SPI clocks.
-// 12 MHz remains much faster than software SPI without edge artefacts.
-#define TFT_SPI_HZ 12000000
-
 class PipetteTFT : public Adafruit_ST7735 {
  public:
   using Adafruit_ST7735::Adafruit_ST7735;
@@ -32,9 +28,8 @@ class PipetteTFT : public Adafruit_ST7735 {
   }
 };
 
-// Use the ESP32 SPI peripheral. Supplying MOSI/SCLK to the display
-// constructor selects much slower software SPI.
-PipetteTFT tft = PipetteTFT(TFT_CS, TFT_DC, TFT_RST);
+// Using software SPI, because I discovered limit switch pin was default hardware SPI
+PipetteTFT tft = PipetteTFT(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
 
 #define WHITE ST77XX_WHITE
 #define BLACK ST77XX_BLACK
@@ -49,10 +44,13 @@ uint16_t OFF_WHITE;
 uint16_t PURE_WHITE;
 uint16_t BLUSH_PINK;
 
+// TFT pages to render
 enum TftPage {
   PAGE_NONE,
   PAGE_HOME,
   PAGE_SETUP,
+  PAGE_ASPIRATION_PLAN,
+  PAGE_HOMING,
   PAGE_PRE_ASPIRATION_TILT,
   PAGE_PRE_ASPIRATION_PRESS,
   PAGE_ASPIRATING,
@@ -62,6 +60,7 @@ enum TftPage {
   PAGE_DISPENSING,
   PAGE_MOVE_TO_WELL,
   PAGE_PAUSE,
+  PAGE_IMU_TEST,
   PAGE_COMPLETE,
   PAGE_ERROR
 };
@@ -109,13 +108,49 @@ bool beginPage(TftPage page, uint16_t borderColour) {
   return true;
 }
 
+void drawTextBox(
+  const char *text,
+  int x,
+  int y,
+  int w,
+  int h,
+  uint16_t fill,
+  uint16_t border,
+  uint16_t textColour,
+  uint8_t textSize = 1
+) {
+  tft.fillRoundRect(x, y, w, h, 4, fill);
+  tft.drawRoundRect(x, y, w, h, 4, border);
+
+  tft.setFont();
+  tft.setTextSize(textSize);
+  tft.setTextColor(textColour);
+
+  int16_t textX;
+  int16_t textY;
+  uint16_t textW;
+  uint16_t textH;
+  tft.getTextBounds(text, 0, 0, &textX, &textY, &textW, &textH);
+
+  int cursorX = x + (w - textW) / 2;
+  int cursorY = y + (h - textH) / 2 - textY;
+  tft.setCursor(cursorX, cursorY);
+  tft.print(text);
+}
+
+void drawTitleBox(const char *title, uint16_t colour) {
+  drawTextBox(title, 12, 10, 104, 22, colour, colour, WHITE, 1);
+}
+
+void drawBodyBox(const char *text, int y, uint16_t borderColour, uint8_t textSize = 1) {
+  drawTextBox(text, 14, y, 100, 22, OFF_WHITE, borderColour, BLACK, textSize);
+}
+
 void setupTFT() {
-  SPI.begin(TFT_SCLK, -1, TFT_MOSI, TFT_CS);
   // Keep the black-tab colour order, but apply this panel's 2x1 RAM offset.
   // GREENTAB fixes the offset but changes the colour order on this display.
   tft.initR(INITR_BLACKTAB);
   tft.setPanelOffset(2, 1);
-  tft.setSPISpeed(TFT_SPI_HZ);
   tft.setRotation(0);
   initColours();
   tft.fillScreen(WHITE);
@@ -136,6 +171,12 @@ void testTFT() {
   delay(1200);
 
   drawPreAspirationPressPage();
+  delay(1200);
+
+  drawAspirationPlanPage(settings, 2);
+  delay(1200);
+
+  drawHomingPage();
   delay(1200);
 
   drawAspiratingPage();
@@ -159,6 +200,9 @@ void testTFT() {
   drawPausePage(settings);
   delay(1200);
 
+  drawIMUTestPage(settings, 0, 0, true, false);
+  delay(1200);
+
   drawDispenseCompletedPage(settings);
   delay(1200);
 
@@ -179,15 +223,7 @@ void drawHomePage(const PipetteSettings &settings) {
     INTEGRA_LOGO_HEIGHT
   );
 
-  tft.fillRoundRect(19, 65, 90, 38, 8, TEAL);
-  tft.fillRoundRect(24, 70, 80, 28, 3, OFF_WHITE);
-
-  tft.setFont(&FreeSans9pt7b);
-  tft.setTextSize(1);
-  tft.setTextColor(BLACK);
-  tft.setCursor(35, 89);
-  tft.print("Setup");
-
+  drawTextBox("SETUP", 24, 72, 80, 30, OFF_WHITE, TEAL, BLACK, 2);
 }
 
 void drawSetupRow(
@@ -202,7 +238,7 @@ void drawSetupRow(
   const int rowX = 14;
   const int rowW = 100;
   const int rowH = 19;
-  const int firstRowY = 34;
+  const int firstRowY = 38;
   const int rowGap = 23;
 
   int y = firstRowY + row * rowGap;
@@ -214,8 +250,6 @@ void drawSetupRow(
   if (selected && editing) {
     tft.fillRoundRect(rowX - 3, y - 3, rowW + 6, rowH + 6, 6, TEAL);
   } else if (selected) {
-    // A filled outer shape plus a smaller light interior creates a solid,
-    // thick teal selection frame.
     tft.fillRoundRect(rowX - 3, y - 3, rowW + 6, rowH + 6, 6, TEAL);
     tft.fillRoundRect(rowX + 1, y + 1, rowW - 2, rowH - 2, 3, OFF_WHITE);
   } else {
@@ -228,7 +262,7 @@ void drawSetupRow(
 
   switch (row) {
     case 0:
-      tft.print("Volume");
+      tft.print("Volume uL");
       tft.setCursor(83, y + 6);
       tft.print(settings.dispenseVolume_uL, 0);
       break;
@@ -262,11 +296,7 @@ void drawSetupPage(
   bool newPage = beginPage(PAGE_SETUP, TEAL);
 
   if (newPage) {
-    tft.setFont(&FreeSansBold9pt7b);
-    tft.setTextSize(1);
-    tft.setTextColor(BLACK);
-    tft.setCursor(44, 28);
-    tft.print("Setup");
+    drawTitleBox("SETUP", TEAL);
 
     for (int row = 0; row < 5; row++) {
       drawSetupRow(settings, row, selectedSetting, editing);
@@ -312,46 +342,55 @@ void drawSetupPage(
   };
 }
 
-void drawPreAspirationTiltPage(const PipetteSettings &settings, bool angleOkay) {
-  if (!beginPage(PAGE_PRE_ASPIRATION_TILT, CORAL_RED)) {
-    return;
-  }
-
-  tft.setFont(&FreeSansBold9pt7b);
-  tft.setTextColor(BLACK);
-  tft.setCursor(20, 28);
-  tft.print("Aspirating");
-
-  tft.setFont(&FreeSans9pt7b);
-  tft.setCursor(40, 70);
-  tft.print("Tilt to");
-
-  tft.setFont(&FreeSansBold9pt7b);
-  tft.setTextSize(2);
-  tft.setCursor(40, 105);
-  tft.print("90");
-
-  tft.setTextSize(1);
-}
-
 void drawPreAspirationPressPage() {
   if (!beginPage(PAGE_PRE_ASPIRATION_PRESS, TEAL)) {
     return;
   }
 
-  tft.setFont(&FreeSansBold9pt7b);
-  tft.setTextColor(BLACK);
-  tft.setCursor(22, 28);
-  tft.print("Aspiration");
+  drawTitleBox("ASPIRATE", TEAL);
+  drawBodyBox("PRESS OK", 58, TEAL, 1);
+  drawBodyBox("TO START", 90, TEAL, 1);
+}
 
-  tft.fillRoundRect(10, 50, 110, 50, 2, TEAL);
-  tft.fillRoundRect(12, 55, 105, 40, 2, OFF_WHITE);
+void drawPreAspirationTiltPage(const PipetteSettings &settings, bool angleOkay) {
+  if (!beginPage(PAGE_PRE_ASPIRATION_TILT, angleOkay ? TEAL : CORAL_RED)) {
+    return;
+  }
 
-  tft.setFont(&FreeSans9pt7b);
-  tft.setCursor(14, 70);
-  tft.print("Press Select");
-  tft.setCursor(20, 88);
-  tft.print("to Aspirate");
+  uint16_t colour = angleOkay ? TEAL : CORAL_RED;
+
+  drawTitleBox("ASPIRATE", colour);
+  drawBodyBox("TILT TO", 58, colour, 1);
+  drawTextBox("90", 24, 92, 80, 34, OFF_WHITE, colour, BLACK, 2);
+}
+
+void drawAspirationPlanPage(const PipetteSettings &settings, int aspirationCount) {
+  if (!beginPage(PAGE_ASPIRATION_PLAN, CORAL_RED)) {
+    return;
+  }
+
+  char text[24];
+
+  drawTitleBox("ASPIRATE", CORAL_RED);
+
+  snprintf(text, sizeof(text), "%d FILLS", aspirationCount);
+  drawBodyBox(text, 48, CORAL_RED, 1);
+
+  snprintf(text, sizeof(text), "MAX %.0f uL", maxAspirationVolume_uL());
+  drawBodyBox(text, 76, CORAL_RED, 1);
+
+  drawBodyBox("REFILL LOW", 104, CORAL_RED, 1);
+  drawBodyBox("OK START", 132, CORAL_RED, 1);
+}
+
+void drawHomingPage() {
+  if (!beginPage(PAGE_HOMING, TEAL)) {
+    return;
+  }
+
+  drawTitleBox("HOMING", TEAL);
+  drawBodyBox("FINDING", 60, TEAL, 1);
+  drawBodyBox("HOME", 92, TEAL, 2);
 }
 
 void drawAspiratingPage() {
@@ -359,18 +398,9 @@ void drawAspiratingPage() {
     return;
   }
 
-  tft.setFont(&FreeSansBold9pt7b);
-  tft.setTextColor(BLACK);
-  tft.setCursor(20, 28);
-  tft.print("Aspiration");
-
-  tft.setFont(&FreeSans9pt7b);
-  tft.setCursor(22, 72);
-  tft.print("Aspirating");
-
-  tft.fillCircle(30, 95, 10, TEAL);
-  tft.fillCircle(64, 95, 10, TEAL);
-  tft.fillCircle(98, 95, 10, TEAL);
+  drawTitleBox("ASPIRATE", TEAL);
+  drawBodyBox("RUNNING", 60, TEAL, 1);
+  drawTextBox("...", 34, 94, 60, 28, OFF_WHITE, TEAL, BLACK, 2);
 }
 
 void drawAspirationCompletedPage(const PipetteSettings &settings) {
@@ -378,16 +408,8 @@ void drawAspirationCompletedPage(const PipetteSettings &settings) {
     return;
   }
 
-  tft.setFont(&FreeSansBold9pt7b);
-  tft.setTextColor(BLACK);
-  tft.setCursor(22, 28);
-  tft.print("Aspiration");
-
-  tft.setFont(&FreeSans9pt7b);
-  tft.setCursor(25, 70);
-  tft.print("Aspiration");
-  tft.setCursor(20, 86);
-  tft.print("Completed");
+  drawTitleBox("ASPIRATE", TEAL);
+  drawBodyBox("COMPLETE", 70, TEAL, 1);
 }
 
 void drawPreDispenseTiltPage(const PipetteSettings &settings, bool angleOkay, bool boardStable) {
@@ -395,21 +417,9 @@ void drawPreDispenseTiltPage(const PipetteSettings &settings, bool angleOkay, bo
     return;
   }
 
-  tft.setFont(&FreeSansBold9pt7b);
-  tft.setTextColor(BLACK);
-  tft.setCursor(16, 28);
-  tft.print("Dispensing");
-
-  tft.setFont(&FreeSans9pt7b);
-  tft.setCursor(40, 70);
-  tft.print("Tilt to");
-
-  tft.setFont(&FreeSansBold9pt7b);
-  tft.setTextSize(2);
-  tft.setCursor(40, 105);
-  tft.print("45");
-
-  tft.setTextSize(1);
+  drawTitleBox("PRE-DISPENSE", CORAL_RED);
+  drawBodyBox("TILT TO", 58, CORAL_RED, 1);
+  drawTextBox("45", 34, 92, 60, 34, OFF_WHITE, CORAL_RED, BLACK, 2);
 }
 
 void drawPreDispensePressPage() {
@@ -417,19 +427,9 @@ void drawPreDispensePressPage() {
     return;
   }
 
-  tft.setFont(&FreeSansBold9pt7b);
-  tft.setTextColor(BLACK);
-  tft.setCursor(16, 28);
-  tft.print("Dispensing");
-
-  tft.fillRoundRect(10, 50, 110, 50, 2, TEAL);
-  tft.fillRoundRect(12, 55, 105, 40, 2, OFF_WHITE);
-
-  tft.setFont(&FreeSans9pt7b);
-  tft.setCursor(14, 70);
-  tft.print("Press Select");
-  tft.setCursor(18, 88);
-  tft.print("to Dispense");
+  drawTitleBox("DISPENSE", TEAL);
+  drawBodyBox("PRESS OK", 58, TEAL, 1);
+  drawBodyBox("TO START", 90, TEAL, 1);
 }
 
 void drawDispensingPage(const PipetteSettings &settings) {
@@ -437,21 +437,21 @@ void drawDispensingPage(const PipetteSettings &settings) {
     return;
   }
 
-  tft.setFont(&FreeSansBold9pt7b);
-  tft.setTextColor(BLACK);
-  tft.setCursor(16, 28);
-  tft.print("Dispensing");
+  char text[24];
 
-  tft.setFont(&FreeSans9pt7b);
-  tft.setCursor(24, 66);
-  tft.print("Well ");
-  tft.print(settings.currentWell + 1);
-  tft.print("/");
-  tft.print(settings.wellCount);
+  drawTitleBox("DISPENSING", TEAL);
 
-  tft.setCursor(25, 94);
-  tft.print(settings.currentDispenseVolume_uL, 0);
-  tft.print(" uL");
+  snprintf(
+    text,
+    sizeof(text),
+    "WELL %d/%d",
+    settings.currentWell + 1,
+    settings.wellCount
+  );
+  drawBodyBox(text, 60, TEAL, 1);
+
+  snprintf(text, sizeof(text), "%.0f uL", settings.currentDispenseVolume_uL);
+  drawBodyBox(text, 92, TEAL, 2);
 }
 
 void drawInbetweenPage(const PipetteSettings &settings) {
@@ -459,22 +459,20 @@ void drawInbetweenPage(const PipetteSettings &settings) {
     return;
   }
 
-  tft.setFont(&FreeSansBold9pt7b);
-  tft.setTextColor(BLACK);
-  tft.setCursor(16, 28);
-  tft.print("Dispensing");
+  char text[24];
 
-  tft.setFont(&FreeSans9pt7b);
-  tft.setCursor(30, 62);
-  tft.print("Move to");
-  tft.setCursor(22, 82);
-  tft.print("Well ");
-  tft.print(settings.currentWell + 1);
-  tft.print("/");
-  tft.print(settings.wellCount);
+  drawTitleBox("MOVE", TEAL);
 
-  tft.setCursor(22, 116);
-  tft.print("OK when ready");
+  snprintf(
+    text,
+    sizeof(text),
+    "WELL %d/%d",
+    settings.currentWell + 1,
+    settings.wellCount
+  );
+  drawBodyBox(text, 60, TEAL, 1);
+  drawBodyBox("TILT TO", 88, TEAL, 1);
+  drawTextBox("90", 34, 116, 60, 28, OFF_WHITE, TEAL, BLACK, 2);
 }
 
 void drawPausePage(const PipetteSettings &settings) {
@@ -482,16 +480,44 @@ void drawPausePage(const PipetteSettings &settings) {
     return;
   }
 
-  tft.setFont(&FreeSansBold9pt7b);
-  tft.setTextColor(BLACK);
-  tft.setCursor(35, 43);
-  tft.print("Paused");
+  drawTitleBox("PAUSED", TEAL);
+  drawBodyBox("TILT TO", 64, TEAL, 1);
+  drawTextBox("45", 34, 92, 60, 28, WHITE, TEAL, BLACK, 2);
+  drawBodyBox("DOWN QUIT", 126, TEAL, 1);
+}
 
-  tft.setFont(&FreeSans9pt7b);
-  tft.setCursor(18, 88);
-  tft.print("OK: Continue");
-  tft.setCursor(18, 116);
-  tft.print("Down: Quit");
+void drawIMUTestPage(
+  const PipetteSettings &settings,
+  float roll,
+  float pitch,
+  bool valid,
+  bool passed
+) {
+  bool newPage = beginPage(PAGE_IMU_TEST, valid ? TEAL : CORAL_RED);
+
+  if (newPage) {
+    drawTitleBox("IMU TEST", valid ? TEAL : CORAL_RED);
+    drawBodyBox("HOLD LEVEL", 48, valid ? TEAL : CORAL_RED, 1);
+  }
+
+  char text[24];
+  uint16_t statusColour = valid ? TEAL : CORAL_RED;
+
+  tft.fillRect(10, 76, 108, 78, WHITE);
+
+  snprintf(text, sizeof(text), "ROLL %.0f", roll);
+  drawBodyBox(text, 78, statusColour, 1);
+
+  snprintf(text, sizeof(text), "PITCH %.0f", pitch);
+  drawBodyBox(text, 106, statusColour, 1);
+
+  if (passed) {
+    drawBodyBox("PASSED", 134, TEAL, 1);
+  } else if (valid) {
+    drawBodyBox("STEADY", 134, TEAL, 1);
+  } else {
+    drawBodyBox("LEVEL", 134, CORAL_RED, 1);
+  }
 }
 
 void drawDispenseCompletedPage(const PipetteSettings &settings) {
@@ -499,12 +525,8 @@ void drawDispenseCompletedPage(const PipetteSettings &settings) {
     return;
   }
 
-  tft.setFont(&FreeSans9pt7b);
-  tft.setTextColor(BLACK);
-  tft.setCursor(20, 70);
-  tft.print("Dispensing");
-  tft.setCursor(20, 86);
-  tft.print("Completed");
+  drawTitleBox("DISPENSE", TEAL);
+  drawBodyBox("COMPLETE", 70, TEAL, 1);
 }
 
 void drawErrorPage(const PipetteSettings &settings, const char *message) {
@@ -512,13 +534,8 @@ void drawErrorPage(const PipetteSettings &settings, const char *message) {
     return;
   }
 
-  tft.setFont(&FreeSans9pt7b);
-  tft.setTextColor(BLACK);
-  tft.setCursor(20, 70);
-  tft.print("ERROR");
-
-  tft.setCursor(10, 95);
-  tft.print(message);
+  drawTitleBox("ERROR", CORAL_RED);
+  drawBodyBox(message, 70, CORAL_RED, 1);
 }
 
 void drawPreAspirationPage(const PipetteSettings &settings, bool angleOkay) {

@@ -79,7 +79,7 @@ bool isIMUStable() {
   static unsigned long stableStartTime = 0;
 
   const float STABLE_TOLERANCE_DEG = 2.0f;
-  const unsigned long REQUIRED_STABLE_TIME_MS = 1000;
+  const unsigned long REQUIRED_STABLE_TIME_MS = 500;
 
   Angles angles = getAngle();
 

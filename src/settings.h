@@ -21,5 +21,9 @@ void resetExperiment(PipetteSettings &settings);
 void updateCurrentDispenseVolume(PipetteSettings &settings);
 float calculateTotalAspirationVolume(const PipetteSettings &settings);
 long volumeToSteps(float volume_uL);
+long aspirationVolumeToSteps(float volume_uL);
+long maxAspirationSteps();
+float maxAspirationVolume_uL();
+int calculateAspirationCount(const PipetteSettings &settings);
 
 #endif

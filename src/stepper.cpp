@@ -7,49 +7,17 @@
 #define DIR_PIN  19
 #define EN_PIN   15
 
-// Standalone STEP/DIR config.
+// Standalone STEP/DIR/EN config.
 // Current is set by the physical VREF potentiometer on the TMC module.
+// Positive movement goes toward the end-stop/limit switch.
+// Negative movement backs away from the end stop and aspirates.
 #define STEPS_PER_REV 200
-#define MAX_SPEED 4000
-#define ACCELERATION 3000
-#define TEST_STEPS 1600
-#define HOMING_SPEED 800
-#define HOMING_SLOW_SPEED 250
-#define HOMING_BACKOFF_STEPS 300
-#define HOMING_MAX_STEPS 20000
+#define MAX_SPEED 10000
+#define ACCELERATION 8000
+#define HOMING_SEEK_STEPS 30000
+#define ASPIRATION_STEPS 20000
 
 AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
-
-void testDriver() {
-  Serial.println();
-  Serial.println("=== STEP/DIR stepper test ===");
-  Serial.println("UART is not used in this version.");
-  Serial.println("Set motor current with the driver's VREF potentiometer.");
-
-  Serial.print("STEP pin: GPIO");
-  Serial.println(STEP_PIN);
-  Serial.print("DIR pin: GPIO");
-  Serial.println(DIR_PIN);
-  Serial.print("EN pin: GPIO");
-  Serial.println(EN_PIN);
-  Serial.print("Enable pin level: ");
-  Serial.println(digitalRead(EN_PIN) == LOW ? "LOW (enabled)" : "HIGH (disabled)");
-
-  Serial.print("Moving forward ");
-  Serial.print(TEST_STEPS);
-  Serial.println(" steps...");
-  moveStepper(TEST_STEPS);
-  delay(500);
-
-  Serial.print("Moving backward ");
-  Serial.print(TEST_STEPS);
-  Serial.println(" steps...");
-  moveStepper(-TEST_STEPS);
-
-  Serial.println("STEP/DIR test complete.");
-  Serial.println("=========================");
-  Serial.println();
-}
 
 void setupStepper() {
   pinMode(EN_PIN, OUTPUT);
@@ -61,7 +29,6 @@ void setupStepper() {
 
   digitalWrite(EN_PIN, LOW); // enable driver
   delay(100);
-  testDriver();
 }
 
 void enableStepper() {
@@ -86,11 +53,13 @@ void updateStepper() {
 }
 
 void stepperForwards(int steps) {
+  // Forward is toward the end-stop/limit switch.
   moveStepper(steps);
   delay(500);
 }
 
 void stepperBackwards(int steps){
+  // Backward is away from the end stop, used for aspiration.
   moveStepper(-steps);
   delay(500);
 }
@@ -98,78 +67,40 @@ void stepperBackwards(int steps){
 bool homeStepper() {
   Serial.println();
   Serial.println("=== Stepper homing ===");
-  Serial.println("Moving toward limit switch on GPIO17...");
+  Serial.print("Initial limit switch: ");
+  Serial.println(handleLimitSwitch() ? "PRESSED" : "released");
+  Serial.print("Seek steps: ");
+  Serial.println(HOMING_SEEK_STEPS);
 
   enableStepper();
 
-  // If the switch is already pressed, move away first so homing can re-approach cleanly.
-  if (handleLimitSwitch()) {
-    Serial.println("Limit already pressed; backing off...");
-    stepper.setSpeed(HOMING_SLOW_SPEED);
-
-    long startPosition = stepper.currentPosition();
-    while (handleLimitSwitch()) {
-      stepper.runSpeed();
-
-      long travelled = stepper.currentPosition() - startPosition;
-      if (travelled < 0) {
-        travelled = -travelled;
-      }
-
-      if (travelled >= HOMING_MAX_STEPS) {
-        Serial.println("Homing failed: switch stayed pressed while backing off.");
-        return false;
-      }
-    }
-
-    delay(100);
-  }
-
-  stepper.setSpeed(-HOMING_SPEED);
-  long startPosition = stepper.currentPosition();
+  Serial.println("Seeking limit switch...");
+  stepper.move(HOMING_SEEK_STEPS);
 
   while (!handleLimitSwitch()) {
-    stepper.runSpeed();
+    stepper.run();
 
-    long travelled = stepper.currentPosition() - startPosition;
-    if (travelled < 0) {
-      travelled = -travelled;
-    }
-
-    if (travelled >= HOMING_MAX_STEPS) {
+    if (stepper.distanceToGo() == 0) {
       Serial.println("Homing failed: limit switch not reached.");
       return false;
     }
   }
 
   Serial.println("Limit switch hit.");
-
-  // Back off the switch, then approach slowly for a cleaner zero.
-  moveStepper(HOMING_BACKOFF_STEPS);
-  delay(100);
-
-  Serial.println("Re-approaching slowly...");
-  stepper.setSpeed(-HOMING_SLOW_SPEED);
-
-  startPosition = stepper.currentPosition();
-  while (!handleLimitSwitch()) {
-    stepper.runSpeed();
-
-    long travelled = stepper.currentPosition() - startPosition;
-    if (travelled < 0) {
-      travelled = -travelled;
-    }
-
-    if (travelled >= HOMING_MAX_STEPS) {
-      Serial.println("Homing failed: limit switch not reached on slow approach.");
-      return false;
-    }
-  }
-
   stepper.setCurrentPosition(0);
   Serial.println("Homing complete. Current position set to 0.");
   Serial.println("======================");
   Serial.println();
+  return true;
+}
+
+bool aspirateFromHome() {
+  if (!homeStepper()) {
+    return false;
+  }
+
+  enableStepper();
+  moveStepper(-ASPIRATION_STEPS);
   return true;
 }
 

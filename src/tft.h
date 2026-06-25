@@ -15,6 +15,8 @@ void drawSetupPage(
 );
 void drawPreAspirationTiltPage(const PipetteSettings &settings, bool angleOkay);
 void drawPreAspirationPressPage();
+void drawAspirationPlanPage(const PipetteSettings &settings, int aspirationCount);
+void drawHomingPage();
 void drawAspiratingPage();
 void drawAspirationCompletedPage(const PipetteSettings &settings);
 void drawPreDispenseTiltPage(const PipetteSettings &settings, bool angleOkay, bool boardStable);
@@ -22,6 +24,13 @@ void drawPreDispensePressPage();
 void drawDispensingPage(const PipetteSettings &settings);
 void drawInbetweenPage(const PipetteSettings &settings);
 void drawPausePage(const PipetteSettings &settings);
+void drawIMUTestPage(
+  const PipetteSettings &settings,
+  float roll,
+  float pitch,
+  bool valid,
+  bool passed
+);
 void drawDispenseCompletedPage(const PipetteSettings &settings);
 void drawErrorPage(const PipetteSettings &settings, const char *message);
 

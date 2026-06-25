@@ -4,7 +4,6 @@
 #include <Arduino.h>
 
 void setupStepper();
-void testDriver();
 void enableStepper();
 void disableStepper();
 void moveStepper(int steps);
@@ -12,6 +11,7 @@ void updateStepper();
 void stepperForwards(int steps);
 void stepperBackwards(int steps);
 bool homeStepper();
+bool aspirateFromHome();
 
 void stepperMoveRelative(long steps);
 bool stepperMoveComplete();
